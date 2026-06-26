@@ -1,0 +1,53 @@
+const BASE = "http://localhost:8080/api";
+
+function getToken() {
+  return localStorage.getItem("token");
+}
+
+async function request(path, { method = "GET", body, auth = false } = {}) {
+  const headers = { "Content-Type": "application/json" };
+  if (auth && getToken()) headers["Authorization"] = `Bearer ${getToken()}`;
+
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!res.ok) {
+    throw new Error(data?.mensaje || `Error ${res.status}`);
+  }
+  return data;
+}
+
+export const api = {
+  // Auth
+  registro: (datos) => request("/auth/registro", { method: "POST", body: datos }),
+  login: (datos) => request("/auth/login", { method: "POST", body: datos }),
+  // Catalogo
+  especialidades: () => request("/especialidades"),
+  medicos: (especialidad) =>
+    request(`/medicos${especialidad ? `?especialidad=${encodeURIComponent(especialidad)}` : ""}`),
+  horarios: (especialidad) =>
+    request(`/horarios${especialidad ? `?especialidad=${encodeURIComponent(especialidad)}` : ""}`),
+  horariosMedico: (idMedico) => request(`/horarios/medico/${idMedico}`),
+  // Citas (requieren token)
+  reservar: (idHorario) => request("/citas", { method: "POST", auth: true, body: { idHorario, canal: "WEB" } }),
+  misCitas: () => request("/citas/mias", { auth: true }),
+  cancelar: (idCita) => request(`/citas/${idCita}`, { method: "DELETE", auth: true }),
+  listaEspera: (idHorario) => request(`/citas/lista-espera/${idHorario}`, { method: "POST", auth: true }),
+  // Notificaciones
+  misNotificaciones: () => request("/notificaciones/mias", { auth: true }),
+  // Admin
+  kpis: () => request("/admin/kpis"),
+  adminCitas: (estado, hoy) => request(`/admin/citas?${estado ? `estado=${estado}&` : ""}${hoy ? "hoy=true" : ""}`),
+  adminListaEspera: () => request("/admin/lista-espera"),
+  adminReportes: () => request("/admin/reportes"),
+  adminAsegurados: () => request("/admin/asegurados"),
+  adminReservar: (dni, idHorario) => request("/admin/reservar", { method: "POST", body: { dni, idHorario } }),
+};
+
+export { getToken };
