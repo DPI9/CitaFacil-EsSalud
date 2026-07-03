@@ -38,7 +38,9 @@ export const api = {
   reservar: (idHorario) => request("/citas", { method: "POST", auth: true, body: { idHorario, canal: "WEB" } }),
   misCitas: () => request("/citas/mias", { auth: true }),
   cancelar: (idCita) => request(`/citas/${idCita}`, { method: "DELETE", auth: true }),
+  reprogramar: (idCita, idHorario) => request(`/citas/${idCita}/reprogramar`, { method: "PUT", auth: true, body: { idHorario } }),
   listaEspera: (idHorario) => request(`/citas/lista-espera/${idHorario}`, { method: "POST", auth: true }),
+  recuperar: (dni) => request("/auth/recuperar", { method: "POST", body: { dni } }),
   // Notificaciones
   misNotificaciones: () => request("/notificaciones/mias", { auth: true }),
   // Admin
@@ -48,6 +50,10 @@ export const api = {
   adminReportes: () => request("/admin/reportes"),
   adminAsegurados: () => request("/admin/asegurados"),
   adminReservar: (dni, idHorario) => request("/admin/reservar", { method: "POST", body: { dni, idHorario } }),
+  adminAuditoria: () => request("/admin/auditoria"),
+  adminMedicos: () => request("/admin/medicos"),
+  adminAgenda: (idMedico) => request(`/admin/agenda/${idMedico}`),
+  adminEjecutarRecordatorios: () => request("/admin/recordatorios/ejecutar", { method: "POST" }),
 };
 
 export { getToken };

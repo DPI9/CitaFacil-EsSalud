@@ -6,10 +6,13 @@ import org.springframework.transaction.annotation.Transactional;
 import pe.utp.citafacil.model.Cita;
 import pe.utp.citafacil.model.EstadoCita;
 import pe.utp.citafacil.model.HorarioDisponible;
+import pe.utp.citafacil.model.AuditoriaCita;
 import pe.utp.citafacil.repository.AseguradoRepository;
+import pe.utp.citafacil.repository.AuditoriaCitaRepository;
 import pe.utp.citafacil.repository.CitaRepository;
 import pe.utp.citafacil.repository.HorarioDisponibleRepository;
 import pe.utp.citafacil.repository.ListaEsperaRepository;
+import pe.utp.citafacil.repository.MedicoRepository;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -22,6 +25,8 @@ public class AdminService {
     private final ListaEsperaRepository listaEsperaRepository;
     private final HorarioDisponibleRepository horarioRepository;
     private final AseguradoRepository aseguradoRepository;
+    private final AuditoriaCitaRepository auditoriaRepository;
+    private final MedicoRepository medicoRepository;
 
     @Transactional(readOnly = true)
     public Map<String, Object> kpis() {
@@ -178,6 +183,36 @@ public class AdminService {
             m.put("nombre", a.getNombres() + " " + a.getApellidos());
             return m;
         }).toList();
+    }
+
+    /** Traza de auditoria de cambios de estado (RF-13). */
+    @Transactional(readOnly = true)
+    public List<AuditoriaCita> auditoria() {
+        return auditoriaRepository.findTop100ByOrderByFechaDesc();
+    }
+
+    /** Lista de medicos (para el selector de agenda). */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> medicos() {
+        return medicoRepository.findAll().stream().map(m -> {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("idMedico", m.getIdMedico());
+            map.put("nombre", "Dr(a). " + m.getNombres() + " " + m.getApellidos());
+            map.put("especialidad", m.getEspecialidad());
+            return map;
+        }).toList();
+    }
+
+    /** Agenda de un medico: sus citas ordenadas por fecha/hora (rol Medico - solo lectura). */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> agendaMedico(Long idMedico) {
+        return citaRepository.findAll().stream()
+                .filter(c -> c.getHorario() != null && c.getHorario().getMedico() != null
+                        && c.getHorario().getMedico().getIdMedico().equals(idMedico))
+                .sorted(Comparator.comparing((Cita c) -> c.getHorario().getFecha())
+                        .thenComparing(c -> c.getHorario().getHoraInicio()))
+                .map(this::citaMap)
+                .toList();
     }
 
     /** Indicadores resumidos para la seccion de Reportes. */

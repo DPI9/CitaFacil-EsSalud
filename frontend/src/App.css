@@ -148,6 +148,11 @@ body { font-family: "Segoe UI", system-ui, sans-serif; color: #1f2937; }
 .badge.ATENDIDA { background: var(--azul); }
 .badge.NO_ASISTIO { background: #6b7280; }
 .btn-cancelar { margin-top: .7rem; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; padding: .55rem 1rem; border-radius: 8px; font-weight: 600; cursor: pointer; }
+.acciones-cita { display: flex; gap: .5rem; margin-top: .7rem; }
+.btn-mini { flex: 1; padding: .5rem; border-radius: 8px; font-weight: 600; cursor: pointer; border: 1px solid transparent; font-size: .85rem; }
+.btn-mini.azul { background: #eaf2fb; color: var(--azul); border-color: #bcd7f0; }
+.btn-mini.rojo { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+.sel-inline { padding: .55rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: .95rem; margin-bottom: 1rem; min-width: 300px; }
 
 /* ====== Perfil ====== */
 .perfil-avatar { width: 80px; height: 80px; border-radius: 50%; background: var(--azul); color: #fff; font-size: 1.8rem; font-weight: 700; display: flex; align-items: center; justify-content: center; margin: 1rem auto; }

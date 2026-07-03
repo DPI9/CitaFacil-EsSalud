@@ -6,6 +6,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import pe.utp.citafacil.dto.CitaResponse;
+import pe.utp.citafacil.dto.ReprogramarRequest;
 import pe.utp.citafacil.dto.ReservaRequest;
 import pe.utp.citafacil.model.ListaEspera;
 import pe.utp.citafacil.service.CitaService;
@@ -35,6 +36,13 @@ public class CitaController {
     public CitaResponse cancelar(@AuthenticationPrincipal UserDetails user,
                                  @PathVariable Long id) {
         return citaService.cancelar(user.getUsername(), id);
+    }
+
+    @PutMapping("/{id}/reprogramar")
+    public CitaResponse reprogramar(@AuthenticationPrincipal UserDetails user,
+                                    @PathVariable Long id,
+                                    @Valid @RequestBody ReprogramarRequest req) {
+        return citaService.reprogramar(user.getUsername(), id, req.idHorario());
     }
 
     @PostMapping("/lista-espera/{idHorario}")

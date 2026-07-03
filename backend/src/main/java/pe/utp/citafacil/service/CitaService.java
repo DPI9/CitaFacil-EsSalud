@@ -20,6 +20,9 @@ public class CitaService {
     private final AseguradoRepository aseguradoRepository;
     private final ListaEsperaRepository listaEsperaRepository;
     private final NotificacionService notificacionService;
+    private final AuditoriaCitaRepository auditoriaRepository;
+
+    private static final long HORAS_MINIMAS = 2; // RF-07: cancelar/reprogramar hasta 2h antes
 
     /** Reserva una cita descontando el cupo de forma atomica (RF-06). */
     @Transactional
@@ -43,20 +46,18 @@ public class CitaService {
         cita = citaRepository.save(cita);
 
         notificacionService.enviar(cita, "CONFIRMACION", "WHATSAPP");
+        auditar(cita, "RESERVA", null, "CONFIRMADA", canal != null && canal.equals("ADMIN") ? "ADMIN" : dni);
         return CitaResponse.de(cita);
     }
 
     /** Cancela una cita, libera el cupo y reasigna al siguiente en lista de espera (RF-07/RF-10). */
     @Transactional
     public CitaResponse cancelar(String dni, Long idCita) {
-        Cita cita = citaRepository.findById(idCita)
-                .orElseThrow(() -> new IllegalArgumentException("Cita no encontrada"));
-        if (!cita.getAsegurado().getDni().equals(dni)) {
-            throw new IllegalArgumentException("La cita no pertenece a este asegurado");
-        }
+        Cita cita = obtenerCitaDelAsegurado(dni, idCita);
         if (cita.getEstado() == EstadoCita.CANCELADA) {
             throw new IllegalArgumentException("La cita ya estaba cancelada");
         }
+        validarAnticipacion(cita);
 
         cita.setEstado(EstadoCita.CANCELADA);
         cita.setFechaCancelacion(LocalDateTime.now());
@@ -65,9 +66,75 @@ public class CitaService {
         Long idHorario = cita.getHorario().getIdHorario();
         horarioRepository.liberarCupo(idHorario);
         notificacionService.enviar(cita, "CANCELACION", "WHATSAPP");
+        auditar(cita, "CANCELACION", "CONFIRMADA", "CANCELADA", dni);
 
         reasignarDesdeListaEspera(idHorario);
         return CitaResponse.de(cita);
+    }
+
+    /** Reprograma una cita a un nuevo horario (RF-07). */
+    @Transactional
+    public CitaResponse reprogramar(String dni, Long idCita, Long nuevoIdHorario) {
+        Cita cita = obtenerCitaDelAsegurado(dni, idCita);
+        if (cita.getEstado() != EstadoCita.CONFIRMADA) {
+            throw new IllegalArgumentException("Solo se pueden reprogramar citas confirmadas");
+        }
+        validarAnticipacion(cita);
+
+        HorarioDisponible nuevo = horarioRepository.findById(nuevoIdHorario)
+                .orElseThrow(() -> new IllegalArgumentException("Nuevo horario no encontrado"));
+        Long anteriorIdHorario = cita.getHorario().getIdHorario();
+        if (anteriorIdHorario.equals(nuevoIdHorario)) {
+            throw new IllegalArgumentException("El nuevo horario es el mismo que el actual");
+        }
+
+        // Toma el cupo del nuevo horario de forma atomica
+        int afectadas = horarioRepository.descontarCupo(nuevoIdHorario);
+        if (afectadas == 0) {
+            throw new SinCuposException("El nuevo horario no tiene cupos disponibles.");
+        }
+        // Libera el cupo del horario anterior
+        horarioRepository.liberarCupo(anteriorIdHorario);
+
+        cita.setHorario(nuevo);
+        citaRepository.save(cita);
+
+        notificacionService.enviar(cita, "CONFIRMACION", "WHATSAPP");
+        auditar(cita, "REPROGRAMACION", "CONFIRMADA", "CONFIRMADA", dni);
+        reasignarDesdeListaEspera(anteriorIdHorario);
+        return CitaResponse.de(cita);
+    }
+
+    /** Valida que falten al menos 2 horas para la cita (RF-07). */
+    private void validarAnticipacion(Cita cita) {
+        var h = cita.getHorario();
+        if (h != null && h.getFecha() != null && h.getHoraInicio() != null) {
+            LocalDateTime inicio = LocalDateTime.of(h.getFecha(), h.getHoraInicio());
+            if (LocalDateTime.now().plusHours(HORAS_MINIMAS).isAfter(inicio)) {
+                throw new IllegalArgumentException(
+                        "Solo se puede cancelar o reprogramar hasta " + HORAS_MINIMAS + " horas antes de la cita.");
+            }
+        }
+    }
+
+    private Cita obtenerCitaDelAsegurado(String dni, Long idCita) {
+        Cita cita = citaRepository.findById(idCita)
+                .orElseThrow(() -> new IllegalArgumentException("Cita no encontrada"));
+        if (!cita.getAsegurado().getDni().equals(dni)) {
+            throw new IllegalArgumentException("La cita no pertenece a este asegurado");
+        }
+        return cita;
+    }
+
+    private void auditar(Cita cita, String accion, String estadoAnterior, String estadoNuevo, String actor) {
+        auditoriaRepository.save(AuditoriaCita.builder()
+                .idCita(cita.getIdCita())
+                .codigoReserva(cita.getCodigoReserva())
+                .estadoAnterior(estadoAnterior)
+                .estadoNuevo(estadoNuevo)
+                .accion(accion)
+                .actor(actor)
+                .build());
     }
 
     /** Notifica al siguiente asegurado en cola que se libero un cupo. */
@@ -80,7 +147,6 @@ public class CitaService {
                 .ifPresent(siguiente -> {
                     siguiente.setEstadoEspera("NOTIFICADO");
                     listaEsperaRepository.save(siguiente);
-                    // Notificacion de cupo disponible (se asocia mediante log; no hay cita aun)
                     org.slf4j.LoggerFactory.getLogger(CitaService.class).info(
                             ">> [LISTA ESPERA] Cupo liberado en horario {}. Notificado asegurado {} (30 min para confirmar).",
                             idHorario, siguiente.getAsegurado().getDni());

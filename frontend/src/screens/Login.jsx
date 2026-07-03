@@ -5,11 +5,12 @@ export default function Login({ onLogin, irRegistro, irAdmin }) {
   const [dni, setDni] = useState("");
   const [contrasena, setContrasena] = useState("");
   const [error, setError] = useState(null);
+  const [msg, setMsg] = useState(null);
   const [cargando, setCargando] = useState(false);
 
   async function ingresar(e) {
     e.preventDefault();
-    setError(null);
+    setError(null); setMsg(null);
     setCargando(true);
     try {
       const auth = await api.login({ dni, contrasena });
@@ -19,6 +20,15 @@ export default function Login({ onLogin, irRegistro, irAdmin }) {
     } finally {
       setCargando(false);
     }
+  }
+
+  async function recuperar() {
+    setError(null); setMsg(null);
+    if (!dni) { setError("Ingresa tu DNI primero para recuperar la contraseña."); return; }
+    try {
+      const r = await api.recuperar(dni);
+      setMsg(`📧 ${r.mensaje} (Demo — contraseña temporal: ${r.contrasenaTemporal})`);
+    } catch (err) { setError(err.message); }
   }
 
   return (
@@ -40,9 +50,10 @@ export default function Login({ onLogin, irRegistro, irAdmin }) {
           <label>Contraseña</label>
           <input type="password" value={contrasena} onChange={(e) => setContrasena(e.target.value)} placeholder="••••••••" required />
 
-          <div className="link-derecha">¿Olvidaste tu contraseña?</div>
+          <div className="link-derecha" onClick={recuperar}>¿Olvidaste tu contraseña?</div>
 
           {error && <p className="error">⛔ {error}</p>}
+          {msg && <p className="ok">{msg}</p>}
 
           <button className="btn-primario" disabled={cargando}>
             {cargando ? "INGRESANDO…" : "INGRESAR"}

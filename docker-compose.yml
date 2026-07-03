@@ -1,0 +1,48 @@
+# docker-compose de CitaFacil EsSalud (despliegue local/nube - Cap. 7 del informe)
+# Levanta base de datos + backend + frontend con: docker compose up
+#
+# Nota sobre replicacion Maestro-Esclavo (Cap. 6.2): abajo se incluye un
+# servicio 'db-replica' de ejemplo. En produccion se configuraria streaming
+# replication de PostgreSQL (primary -> replica) para lecturas escalables.
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: citafacil
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    depends_on:
+      - db
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/citafacil
+      DB_PASSWORD: postgres
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+  # --- Ejemplo de replica de solo lectura (Maestro-Esclavo) ---
+  # db-replica:
+  #   image: postgres:17
+  #   environment:
+  #     POSTGRES_PASSWORD: postgres
+  #   command: >
+  #     bash -c "pg_basebackup -h db -U postgres -D /var/lib/postgresql/data -Fp -Xs -P -R && postgres"
+  #   depends_on:
+  #     - db
+
+volumes:
+  pgdata:

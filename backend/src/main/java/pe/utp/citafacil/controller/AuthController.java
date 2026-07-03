@@ -24,4 +24,9 @@ public class AuthController {
     public AuthResponse login(@Valid @RequestBody LoginRequest req) {
         return authService.login(req);
     }
+
+    @PostMapping("/recuperar")
+    public java.util.Map<String, String> recuperar(@RequestBody java.util.Map<String, String> body) {
+        return authService.recuperar(body.get("dni"));
+    }
 }

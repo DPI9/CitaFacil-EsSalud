@@ -10,13 +10,18 @@ const MENU = [
   { key: "reservas", label: "Reservas" },
   { key: "cancelaciones", label: "Cancelaciones" },
   { key: "espera", label: "Lista de espera" },
+  { key: "agenda", label: "Agenda médica" },
+  { key: "recordatorios", label: "Recordatorios" },
+  { key: "auditoria", label: "Auditoría" },
   { key: "reportes", label: "Reportes" },
   { key: "config", label: "Configuración" },
 ];
 
 const TITULOS = {
   dashboard: "Dashboard", nueva: "Nueva reserva", citasdia: "Citas del día", reservas: "Reservas",
-  cancelaciones: "Cancelaciones", espera: "Lista de espera", reportes: "Reportes", config: "Configuración",
+  cancelaciones: "Cancelaciones", espera: "Lista de espera", agenda: "Agenda médica",
+  recordatorios: "Recordatorios automáticos", auditoria: "Auditoría de citas",
+  reportes: "Reportes", config: "Configuración",
 };
 
 export default function AdminDashboard({ onSalir }) {
@@ -49,6 +54,9 @@ export default function AdminDashboard({ onSalir }) {
         {seccion === "reservas" && <TablaCitas titulo="Todas las reservas" />}
         {seccion === "cancelaciones" && <TablaCitas titulo="Citas canceladas" estado="CANCELADA" />}
         {seccion === "espera" && <ListaEspera />}
+        {seccion === "agenda" && <AgendaMedica />}
+        {seccion === "recordatorios" && <Recordatorios />}
+        {seccion === "auditoria" && <Auditoria />}
         {seccion === "reportes" && <Reportes />}
         {seccion === "config" && <Config />}
       </main>
@@ -200,6 +208,94 @@ function Reportes() {
         </div>
       </section>
     </>
+  );
+}
+
+/* ---------- Agenda médica (rol médico, solo lectura) ---------- */
+function AgendaMedica() {
+  const [medicos, setMedicos] = useState([]);
+  const [idMedico, setIdMedico] = useState("");
+  const [rows, setRows] = useState([]);
+  useEffect(() => { api.adminMedicos().then(setMedicos).catch(() => {}); }, []);
+  function cambiar(e) {
+    const id = e.target.value; setIdMedico(id);
+    if (id) api.adminAgenda(id).then(setRows).catch(() => setRows([]));
+    else setRows([]);
+  }
+  return (
+    <section className="panel">
+      <h3>Agenda del médico</h3>
+      <select className="sel-inline" value={idMedico} onChange={cambiar}>
+        <option value="">-- Selecciona un médico --</option>
+        {medicos.map((m) => <option key={m.idMedico} value={m.idMedico}>{m.nombre} · {m.especialidad}</option>)}
+      </select>
+      {idMedico && (
+        <table className="tabla">
+          <thead><tr><th>Fecha</th><th>Hora</th><th>Paciente</th><th>DNI</th><th>Estado</th></tr></thead>
+          <tbody>
+            {rows.map((c, i) => (
+              <tr key={i}><td>{c.fecha}</td><td>{c.hora?.slice(0,5)}</td><td>{c.paciente}</td><td>{c.dni}</td>
+                <td><span className="pill" style={{ background: COLOR_ESTADO[c.estado] || "#9ca3af" }}>{c.estado}</span></td></tr>
+            ))}
+            {rows.length === 0 && <tr><td colSpan={5} className="vacio">Este médico no tiene citas</td></tr>}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
+/* ---------- Recordatorios automáticos (RF-09) ---------- */
+function Recordatorios() {
+  const [msg, setMsg] = useState(null);
+  const [error, setError] = useState(null);
+  const [cargando, setCargando] = useState(false);
+  async function ejecutar() {
+    setCargando(true); setMsg(null); setError(null);
+    try { const r = await api.adminEjecutarRecordatorios(); setMsg(`✅ ${r.mensaje}: ${r.cantidad} enviados.`); }
+    catch (e) { setError(e.message); } finally { setCargando(false); }
+  }
+  return (
+    <section className="panel" style={{ maxWidth: 640 }}>
+      <h3>Recordatorios automáticos</h3>
+      <p className="mini">El sistema envía recordatorios automáticamente <strong>24 h y 2 h antes</strong> de cada
+      cita confirmada (tarea programada cada 5 min). También puedes dispararlos manualmente para todas las
+      citas futuras:</p>
+      {msg && <p className="ok-admin">{msg}</p>}
+      {error && <p className="error">⛔ {error}</p>}
+      <button className="btn-admin" onClick={ejecutar} disabled={cargando}>
+        {cargando ? "Enviando…" : "Enviar recordatorios ahora"}
+      </button>
+    </section>
+  );
+}
+
+/* ---------- Auditoría (RF-13) ---------- */
+function Auditoria() {
+  const [rows, setRows] = useState(null);
+  const [error, setError] = useState(null);
+  useEffect(() => { api.adminAuditoria().then(setRows).catch((e) => setError(e.message)); }, []);
+  return (
+    <section className="panel">
+      <h3>Trazabilidad de cambios de estado</h3>
+      {error && <p className="error">⛔ {error}</p>}
+      {!rows ? <p>Cargando…</p> : (
+        <table className="tabla">
+          <thead><tr><th>Fecha</th><th>Código</th><th>Acción</th><th>Estado anterior</th><th>Estado nuevo</th><th>Actor</th></tr></thead>
+          <tbody>
+            {rows.map((a) => (
+              <tr key={a.idAuditoria}>
+                <td>{a.fecha?.replace("T"," ").slice(0,19)}</td>
+                <td>{a.codigoReserva}</td>
+                <td><span className="pill" style={{ background: "#0072bc" }}>{a.accion}</span></td>
+                <td>{a.estadoAnterior || "—"}</td><td>{a.estadoNuevo || "—"}</td><td>{a.actor}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && <tr><td colSpan={6} className="vacio">Sin registros de auditoría aún</td></tr>}
+          </tbody>
+        </table>
+      )}
+    </section>
   );
 }
 

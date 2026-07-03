@@ -45,4 +45,24 @@ public class AuthService {
         String token = jwtService.generarToken(a.getDni());
         return new AuthResponse(token, a.getIdAsegurado(), a.getDni(), a.getNombres(), a.getApellidos());
     }
+
+    /**
+     * Recuperacion de contrasena (RF-14). Genera una contrasena temporal, la guarda cifrada
+     * y (de forma simulada) la "envia por correo". En este MVP se devuelve en la respuesta.
+     */
+    public java.util.Map<String, String> recuperar(String dni) {
+        Asegurado a = aseguradoRepository.findByDni(dni)
+                .orElseThrow(() -> new IllegalArgumentException("No existe un asegurado con ese DNI"));
+        String temporal = "CF" + java.util.UUID.randomUUID().toString().substring(0, 6);
+        a.setContrasenaHash(passwordEncoder.encode(temporal));
+        aseguradoRepository.save(a);
+        // Simulacion de envio por correo
+        System.out.println(">> [RECUPERACION] Se envio la contrasena temporal a " +
+                (a.getCorreo() != null ? a.getCorreo() : "correo del asegurado") + " (DNI " + dni + ").");
+        return java.util.Map.of(
+                "mensaje", "Se generó una contraseña temporal y se envió a tu correo registrado.",
+                "correo", a.getCorreo() != null ? a.getCorreo() : "(sin correo registrado)",
+                "contrasenaTemporal", temporal // solo en demo; en produccion NO se devuelve
+        );
+    }
 }
