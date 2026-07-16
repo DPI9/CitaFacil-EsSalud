@@ -1,4 +1,6 @@
-const BASE = "http://localhost:8080/api";
+// Ruta relativa: en desarrollo la resuelve el proxy de Vite y en produccion
+// el reverse proxy de Nginx. Asi funciona igual en local, Docker y en la nube.
+const BASE = "/api";
 
 function getToken() {
   return localStorage.getItem("token");

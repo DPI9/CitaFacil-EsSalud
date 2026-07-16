@@ -12,15 +12,22 @@ services:
       POSTGRES_DB: citafacil
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+    # 5433 en el host para no chocar con un PostgreSQL nativo en 5432
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d citafacil"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   backend:
     build: ./backend
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/citafacil
       DB_PASSWORD: postgres
@@ -31,7 +38,10 @@ services:
     build: ./frontend
     depends_on:
       - backend
+    # 80 para la nube (Allow HTTP) y 5173 por comodidad en local.
+    # Nginx sirve la app y hace de reverse proxy a /api -> backend:8080
     ports:
+      - "80:80"
       - "5173:80"
 
   # --- Ejemplo de replica de solo lectura (Maestro-Esclavo) ---
