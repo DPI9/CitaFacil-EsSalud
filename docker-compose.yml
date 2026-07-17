@@ -8,6 +8,7 @@
 services:
   db:
     image: postgres:17
+    restart: unless-stopped
     environment:
       POSTGRES_DB: citafacil
       POSTGRES_USER: postgres
@@ -25,6 +26,7 @@ services:
 
   backend:
     build: ./backend
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
@@ -36,6 +38,7 @@ services:
 
   frontend:
     build: ./frontend
+    restart: unless-stopped
     depends_on:
       - backend
     # 80 para la nube (Allow HTTP) y 5173 por comodidad en local.
